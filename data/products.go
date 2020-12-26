@@ -4,19 +4,40 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"time"
+
+	"github.com/go-playground/validator"
 )
 
 // Product defines the structure for an API product
 type Product struct {
 	ID          int     `json:"id"`
-	Name        string  `json:"name"`
+	Name        string  `json:"name" validate:"required"`
 	Description string  `json:"description"`
-	Price       float32 `json:"price"`
-	SKU         string  `json:"sku"`
+	Price       float32 `json:"price" validate:"gt=0"`
+	SKU         string  `json:"sku" validate:"required"`
 	CreatedOn   string  `json:"-"`
 	UpdatedOn   string  `json:"-"`
 	DeletedOn   string  `json:"-"`
+}
+
+// Validate validates struct
+func (p *Product) Validate() error {
+	validate := validator.New()
+	validate.RegisterValidation("sku", validateSKU) // custom validation
+
+	return validate.Struct(p)
+}
+func validateSKU(fl validator.FieldLevel) bool {
+	// sku is of format abc-abcd-abcde
+	re := regexp.MustCompile(`[a-z]+-[a-z]+-[a-z]+`)
+	matches := re.FindAllString(fl.Field().String(), -1)
+
+	if len(matches) != 1 {
+		return false
+	}
+	return true
 }
 
 // Products is a collection of Product
@@ -41,13 +62,13 @@ func GetProducts() Products {
 	return productList
 }
 
-// AddProduct ...
+// AddProduct adds product to a list of products
 func AddProduct(p *Product) {
 	p.ID = generateNextID()
 	productList = append(productList, p)
 }
 
-// UpdateProduct ...
+// UpdateProduct updates info about the existing product
 func UpdateProduct(id int, p *Product) error {
 	_, pos, err := findProduct(id)
 	if err != nil {
@@ -57,7 +78,7 @@ func UpdateProduct(id int, p *Product) error {
 	return nil
 }
 
-// ErrorProductNotFound ...
+// ErrorProductNotFound is a custom error
 var ErrorProductNotFound = fmt.Errorf("Product not found")
 
 func findProduct(id int) (*Product, int, error) {
